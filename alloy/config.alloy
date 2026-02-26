@@ -1,0 +1,125 @@
+// --- 1. WĘZŁY ZEWNĘTRZNE (node-01 do node-05) ---
+prometheus.scrape "external_nodes" {
+  targets = [
+    {"__address__" = "192.168.10.50:9100", "nodename" = "node-01", "job" = "cluster-nodes"},
+    {"__address__" = "192.168.10.51:9100", "nodename" = "node-02", "job" = "cluster-nodes"},
+    {"__address__" = "192.168.10.52:9100", "nodename" = "msforum", "job" = "cluster-nodes"},
+    {"__address__" = "192.168.10.53:9100", "nodename" = "node-04", "job" = "cluster-nodes"},
+    {"__address__" = "192.168.10.54:9100", "nodename" = "node-05", "job" = "cluster-nodes"},
+  ]
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- 2. MIKROTIK (PRZEKIEROWANIE DO SNMP EXPORTERA) ---
+discovery.relabel "mikrotik_target" {
+  targets = [
+    { "__address__" = "10.0.0.254" },
+  ]
+  rule {
+    source_labels = ["__address__"]
+    target_label  = "__param_target"
+  }
+  rule {
+    source_labels = ["__param_target"]
+    target_label  = "instance"
+  }
+  rule {
+    target_label = "__address__"
+    replacement  = "snmp-exporter:9116"
+  }
+}
+
+prometheus.scrape "mikrotik" {
+  targets      = discovery.relabel.mikrotik_target.output
+  metrics_path = "/snmp"
+  params       = { "module" = ["mikrotik"] }
+  job_name     = "snmp"
+  scrape_interval = "15s"
+  scrape_timeout  = "10s"
+  forward_to   = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- 3. DOCKER LOKALNY (METRYKI KONTENERÓW) ---
+discovery.docker "local_containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+prometheus.scrape "local_docker" {
+  targets    = discovery.docker.local_containers.targets
+  forward_to = [prometheus.relabel.docker_fix.receiver]
+}
+
+prometheus.relabel "docker_fix" {
+  rule {
+    target_label = "job"
+    replacement  = "cluster-nodes"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "nodename"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+  rule {
+    source_labels = ["nodename"]
+    target_label  = "nodename"
+    regex         = "([a-f0-9]{12})"
+    replacement   = "msforum"
+  }
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- 4. BLACKBOX EXPORTER (PING / STATUS USŁUG) ---
+prometheus.scrape "service_status" {
+  targets = [
+    {"__address__" = "192.168.10.50", "instance" = "node-01", "job" = "service-status"},
+    {"__address__" = "192.168.10.51", "instance" = "node-02", "job" = "service-status"},
+    {"__address__" = "192.168.10.52", "instance" = "node-03", "job" = "service-status"},
+    {"__address__" = "10.0.0.254",    "instance" = "mikrotik", "job" = "service-status"},
+  ]
+  metrics_path = "/probe"
+  params = { "module" = ["icmp"] }
+  forward_to = [prometheus.relabel.blackbox_redirect.receiver]
+}
+
+prometheus.relabel "blackbox_redirect" {
+  rule {
+    source_labels = ["__address__"]
+    target_label  = "__param_target"
+  }
+  rule {
+    target_label = "__address__"
+    replacement  = "monitoring-blackbox:9115"
+  }
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- 5. WYSYŁKA METRYK DO MIMIR ---
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir:9009/api/v1/push"
+  }
+}
+
+// --- 6. LOGI KONTENERÓW (LOKI) ---
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.local_containers.targets
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+}
+
+loki.source.docker "local_containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.write.loki_instance.receiver]
+}
+
+loki.write "loki_instance" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

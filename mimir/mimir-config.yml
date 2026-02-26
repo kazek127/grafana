@@ -1,0 +1,30 @@
+target: all
+
+multitenancy_enabled: false
+
+server:
+  http_listen_port: 9009
+  grpc_listen_port: 9095
+  http_listen_address: 0.0.0.0
+
+common:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /data/common
+
+ingester:
+  ring:
+    kvstore:
+      store: inmemory
+    replication_factor: 1
+
+blocks_storage:
+  backend: filesystem
+  tsdb:
+    dir: /data/tsdb
+  filesystem:
+    dir: /data/blocks
+
+compactor:
+  data_dir: /data/compactor

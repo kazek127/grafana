@@ -1,0 +1,108 @@
+networks:
+  monitoring:
+    driver: bridge
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    user: "1000:1000"
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+    volumes:
+      - /home/dawid/monitoring/grafana:/var/lib/grafana
+      - /home/dawid/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=xxxxxxxx # Zmień przy pierwszym logowaniu
+
+  #  prometheus:
+  #   image: prom/prometheus:latest
+  #    container_name: prometheus
+  #    restart: unless-stopped
+  #    networks:
+  #      - monitoring
+  #    volumes:
+  #      - /home/dawid/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #      - prometheus_data:/prometheus
+  #    command:
+  #      - '--config.file=/etc/prometheus/prometheus.yml'
+  #      - '--storage.tsdb.path=/prometheus'
+
+  mimir:
+    image: grafana/mimir:latest
+    container_name: mimir
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "9009:9009"
+    volumes:
+      - /home/dawid/monitoring/mimir/mimir-config.yml:/etc/mimir/mimir-config.yml
+      - mimir_data:/data
+    command: ["-config.file=/etc/mimir/mimir-config.yml"]
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "3100:3100"
+    volumes:
+      - /home/dawid/monitoring/loki/loki-config.yml:/etc/loki/loki-config.yml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "12347:12347" # To jest port do UI, który widziałeś na screenie
+    volumes:
+      - /home/dawid/monitoring/alloy/config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock # Opcjonalne: do wykrywania innych kontenerów
+      - /run/udev:/run/udev:ro
+    command: [
+      "run",
+      "--server.http.listen-addr=0.0.0.0:12347",
+      "/etc/alloy/config.alloy"
+    ]
+
+  snmp-exporter:
+    image: prom/snmp-exporter:v0.30.1
+    container_name: snmp-exporter
+    restart: unless-stopped
+    ports:
+      - "9116:9116"
+    volumes:
+      - /home/dawid/monitoring//snmp_exporter/snmp.yml:/etc/snmp_exporter/snmp.yml
+    networks:
+      - monitoring # Upewnij się, że nazwa sieci zgadza się z resztą usług
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    networks:
+      - monitoring
+    expose:
+      - "9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
+volumes:
+  prometheus_data:
+  mimir_data:
+  loki_data:
