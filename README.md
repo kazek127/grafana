@@ -1,7 +1,7 @@
 # grafana
 
 1.  Stack grafany do monitoringu homelaba
-2.  Graf:
+2.  Diagram:
 
 ![img.png](img.png)
 
