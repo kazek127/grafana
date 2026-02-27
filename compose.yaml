@@ -16,7 +16,7 @@ services:
       - /home/dawid/monitoring/grafana:/var/lib/grafana
       - /home/dawid/monitoring/grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=xxxxxxxx # Zmień przy pierwszym logowaniu
+      - GF_SECURITY_ADMIN_PASSWORD=andawid # Zmień przy pierwszym logowaniu
 
   #  prometheus:
   #   image: prom/prometheus:latest
@@ -66,6 +66,7 @@ services:
       - "12347:12347" # To jest port do UI, który widziałeś na screenie
     volumes:
       - /home/dawid/monitoring/alloy/config.alloy:/etc/alloy/config.alloy
+      - /home/dawid/monitoring/alloy/pgbouncer_queries.yaml:/etc/alloy/pgbouncer_queries.yaml
       - /var/run/docker.sock:/var/run/docker.sock # Opcjonalne: do wykrywania innych kontenerów
       - /run/udev:/run/udev:ro
     command: [
@@ -90,8 +91,8 @@ services:
     restart: unless-stopped
     networks:
       - monitoring
-    expose:
-      - "9100"
+    ports:
+      - "9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -101,6 +102,18 @@ services:
       - '--path.rootfs=/rootfs'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "9115:9115"
+    volumes:
+      - /home/dawid/monitoring/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
 
 volumes:
   prometheus_data:
