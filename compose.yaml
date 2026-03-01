@@ -16,7 +16,7 @@ services:
       - /home/dawid/monitoring/grafana:/var/lib/grafana
       - /home/dawid/monitoring/grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=andawid # Zmień przy pierwszym logowaniu
+      - GF_SECURITY_ADMIN_PASSWORD=xxxxxxxxx # Zmień przy pierwszym logowaniu
 
   #  prometheus:
   #   image: prom/prometheus:latest
@@ -63,7 +63,7 @@ services:
     networks:
       - monitoring
     ports:
-      - "12347:12347" # To jest port do UI, który widziałeś na screenie
+      - "12347:12347"
     volumes:
       - /home/dawid/monitoring/alloy/config.alloy:/etc/alloy/config.alloy
       - /home/dawid/monitoring/alloy/pgbouncer_queries.yaml:/etc/alloy/pgbouncer_queries.yaml
@@ -84,7 +84,7 @@ services:
     volumes:
       - /home/dawid/monitoring//snmp_exporter/snmp.yml:/etc/snmp_exporter/snmp.yml
     networks:
-      - monitoring # Upewnij się, że nazwa sieci zgadza się z resztą usług
+      - monitoring
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
